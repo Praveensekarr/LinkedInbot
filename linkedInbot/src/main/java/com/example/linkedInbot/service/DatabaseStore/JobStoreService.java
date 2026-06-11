@@ -71,15 +71,14 @@ public class JobStoreService {
 
         String safeNamePart = namePart.replaceAll("\\s+", "_");
 
-        String filePath = outputDir + File.separator
-                + safeNamePart + "_Profile_Applied_Jobs_"  + timestamp + ".xlsx";
+        String fileName = safeNamePart + "_Profile_Applied_Jobs_" + timestamp + ".xlsx";
 
+        File savedFile;
         try {
-            excelExportService.exportJobsToExcel(allJobs, filePath);
-            log.info("[exportAndClear] Excel saved → {} ({} records)", filePath, allJobs.size());
+            savedFile = excelExportService.exportJobsToExcel(allJobs, fileName);
+            log.info("[exportAndClear] Excel saved -> {} ({} records)", savedFile.getAbsolutePath(), allJobs.size());
         } catch (Exception e) {
             log.error("[exportAndClear] Excel export failed: {}", e.getMessage());
-            // Do NOT clear the DB if export failed — data would be lost with no file
             return null;
         }
 
@@ -91,7 +90,7 @@ public class JobStoreService {
             log.error("[exportAndClear] Truncate failed (Excel is safe): {}", e.getMessage());
         }
 
-        return filePath;
+        return savedFile.getAbsolutePath();
     }
 }
 
