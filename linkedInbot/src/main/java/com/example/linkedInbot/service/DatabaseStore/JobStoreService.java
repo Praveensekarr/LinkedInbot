@@ -1,12 +1,15 @@
 package com.example.linkedInbot.service.DatabaseStore;
 
 import com.example.linkedInbot.model.AppliedJob;
+import com.example.linkedInbot.model.BotConfig;
 import com.example.linkedInbot.repository.AppliedJobRepository;
+import com.example.linkedInbot.service.BotConfig.BotConfigStore;
 import com.example.linkedInbot.service.Excel.ExcelExportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -18,6 +21,7 @@ public class JobStoreService {
 
     private final AppliedJobRepository repo;
     private final ExcelExportService excelExportService;
+    private final BotConfigStore configStore;
 
     public void saveRecord(String jobUrl, String jobTitle, String companyName, String status) {
         try {
@@ -55,7 +59,20 @@ public class JobStoreService {
 
         // Build timestamped filename so each person's run is a separate file
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
-        String filePath = outputDir + java.io.File.separator + "Applied_Jobs_" + timestamp + ".xlsx";
+        String firstName = "";
+        String lastName  = "";
+        BotConfig cfg = configStore.get();
+        if (cfg != null) {
+            firstName = cfg.getFirstName()  != null ? cfg.getFirstName().trim()  : "";
+            lastName  = cfg.getLastName()   != null ? cfg.getLastName().trim()   : "";
+        }
+        String namePart = (firstName + " " + lastName).trim();
+        if (namePart.isEmpty()) namePart = "Profile";
+
+        String safeNamePart = namePart.replaceAll("\\s+", "_");
+
+        String filePath = outputDir + File.separator
+                + safeNamePart + "_Profile_Applied_Jobs_"  + timestamp + ".xlsx";
 
         try {
             excelExportService.exportJobsToExcel(allJobs, filePath);

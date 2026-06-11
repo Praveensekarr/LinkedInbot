@@ -39,6 +39,7 @@ public class BotConfig {
     private String firstName;
     private String lastName;
     private String phoneNumber;
+    private String gender;
 
     // ── Additional custom fields the user wants auto-filled ───────────────────
     // key = label keyword (e.g. "github"), value = text to fill

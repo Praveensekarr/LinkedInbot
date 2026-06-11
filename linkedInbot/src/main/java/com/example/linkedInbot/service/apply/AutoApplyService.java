@@ -217,47 +217,137 @@ public class AutoApplyService {
                     continue; // Smoothly skip down to the next form group step
                 }
 
+//                // 3. Radio buttons
+//                List<WebElement> radios = group.findElements(By.xpath(".//label"));
+//                if (!radios.isEmpty()) {
+//                    WebElement optionToClick = radios.get(0);
+//                    for (WebElement radio : radios) {
+//                        String radioText = radio.getText().toLowerCase();
+//                        if (radioText.equals("yes") || radioText.equals("comfortable")) {
+//                            optionToClick = radio;
+//                            break;
+//                        }
+//                    }
+//                    if (optionToClick == null && label.contains("english")) {
+//                        for (WebElement radio : radios) {
+//                            String rTxt = radio.getText().toLowerCase();
+//                            if (rTxt.contains("fluent") || rTxt.contains("advanced") || rTxt.contains("native")) {
+//                                optionToClick = radio;
+//                                break;
+//                            }
+//                        }
+//                    }
+//                    if (optionToClick == null && (label.contains("experience") || label.contains("years") || label.contains("scala"))) {
+//                        for (WebElement radio : radios) {
+//                            String rTxt = radio.getText().toLowerCase();
+//                            if (rTxt.contains("less than") || rTxt.contains("0-") || rTxt.contains("limited")) {
+//                                optionToClick = radio;
+//                                break;
+//                            }
+//                        }
+//                    }
+//                    if (optionToClick == null && label.contains("start date")) {
+//                        for (WebElement radio : radios) {
+//                            if (radio.getText().toLowerCase().contains("immediately") ||
+//                                    radio.getText().toLowerCase().contains("within 30 days")) {
+//                                optionToClick = radio;
+//                                break;
+//                            }
+//                        }
+//                    }
+//                    if (optionToClick == null) optionToClick = radios.get(0);
+//                    if (optionToClick != null && optionToClick.isDisplayed()) {
+//                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", optionToClick);
+//                        log.info("Selected radio choice: {}", optionToClick.getText());
+//                    }
+//                }
+
                 // 3. Radio buttons
                 List<WebElement> radios = group.findElements(By.xpath(".//label"));
                 if (!radios.isEmpty()) {
-                    WebElement optionToClick = radios.get(0);
-                    for (WebElement radio : radios) {
-                        String radioText = radio.getText().toLowerCase();
-                        if (radioText.equals("yes") || radioText.equals("comfortable")) {
-                            optionToClick = radio;
-                            break;
+                    WebElement optionToClick = null;
+
+                    // ── GENDER: match exactly what the user configured ─────────────
+                    if (label.contains("gender") || label.contains("pronouns")
+                            || label.contains("sex")) {
+                        String configuredGender = c.getGender();
+                        if (configuredGender != null && !configuredGender.isBlank()) {
+                            for (WebElement radio : radios) {
+                                String radioText = "";
+                                try { radioText = radio.getText().toLowerCase(); }
+                                catch (StaleElementReferenceException e) { continue; }
+
+                                if (radioText.equalsIgnoreCase(configuredGender.trim())
+                                        || radioText.contains(configuredGender.toLowerCase().trim())) {
+                                    optionToClick = radio;
+                                    log.info("Gender matched: '{}'", radio.getText());
+                                    break;
+                                }
+                            }
                         }
-                    }
-                    if (optionToClick == null && label.contains("english")) {
+                        // If no match found (e.g. "Prefer not to say" not available), skip entirely
+                        if (optionToClick == null) {
+                            log.info("Gender field — no matching option for '{}', skipping.", c.getGender());
+                            continue;
+                        }
+
+                        // ── YES/NO and other radio questions (existing logic) ───────────
+                    } else {
                         for (WebElement radio : radios) {
-                            String rTxt = radio.getText().toLowerCase();
-                            if (rTxt.contains("fluent") || rTxt.contains("advanced") || rTxt.contains("native")) {
+                            String radioText = "";
+                            try { radioText = radio.getText().toLowerCase(); }
+                            catch (StaleElementReferenceException e) { continue; }
+
+                            if (radioText.equals("yes") || radioText.equals("comfortable")) {
                                 optionToClick = radio;
                                 break;
                             }
                         }
-                    }
-                    if (optionToClick == null && (label.contains("experience") || label.contains("years") || label.contains("scala"))) {
-                        for (WebElement radio : radios) {
-                            String rTxt = radio.getText().toLowerCase();
-                            if (rTxt.contains("less than") || rTxt.contains("0-") || rTxt.contains("limited")) {
-                                optionToClick = radio;
-                                break;
+                        if (optionToClick == null && label.contains("english")) {
+                            for (WebElement radio : radios) {
+                                String rTxt = "";
+                                try { rTxt = radio.getText().toLowerCase(); }
+                                catch (StaleElementReferenceException e) { continue; }
+                                if (rTxt.contains("fluent") || rTxt.contains("advanced")
+                                        || rTxt.contains("native")) {
+                                    optionToClick = radio;
+                                    break;
+                                }
                             }
                         }
-                    }
-                    if (optionToClick == null && label.contains("start date")) {
-                        for (WebElement radio : radios) {
-                            if (radio.getText().toLowerCase().contains("immediately") ||
-                                    radio.getText().toLowerCase().contains("within 30 days")) {
-                                optionToClick = radio;
-                                break;
+                        if (optionToClick == null && (label.contains("experience")
+                                || label.contains("years") || label.contains("scala"))) {
+                            for (WebElement radio : radios) {
+                                String rTxt = "";
+                                try { rTxt = radio.getText().toLowerCase(); }
+                                catch (StaleElementReferenceException e) { continue; }
+                                if (rTxt.contains("less than") || rTxt.contains("0-")
+                                        || rTxt.contains("limited")) {
+                                    optionToClick = radio;
+                                    break;
+                                }
                             }
                         }
+                        if (optionToClick == null && label.contains("start date")) {
+                            for (WebElement radio : radios) {
+                                String rTxt = "";
+                                try { rTxt = radio.getText().toLowerCase(); }
+                                catch (StaleElementReferenceException e) { continue; }
+                                if (rTxt.contains("immediately")
+                                        || rTxt.contains("within 30 days")) {
+                                    optionToClick = radio;
+                                    break;
+                                }
+                            }
+                        }
+                        // Final fallback — first option
+                        if (optionToClick == null) optionToClick = radios.get(0);
                     }
-                    if (optionToClick == null) optionToClick = radios.get(0);
+
+                    // ── Click whichever option was selected ─────────────────────────
                     if (optionToClick != null && optionToClick.isDisplayed()) {
-                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", optionToClick);
+                        ((JavascriptExecutor) driver).executeScript(
+                                "arguments[0].click();", optionToClick);
                         log.info("Selected radio choice: {}", optionToClick.getText());
                     }
                 }
@@ -313,7 +403,6 @@ public class AutoApplyService {
                     WebElement ta = textareas.get(0);
                     String currentVal = ta.getAttribute("value");
 
-                    // Skip only genuine cover letter / additional info boxes
                     boolean isCoverLetter = label.contains("cover letter")
                             || label.contains("additional information")
                             || label.contains("tell us about yourself")
