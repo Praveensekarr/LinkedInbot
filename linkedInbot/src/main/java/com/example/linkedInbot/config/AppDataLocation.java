@@ -4,17 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 
-/**
- * Resolves the external data folder used for storing user data
- * (profiles.xlsx, Applied_Jobs_*.xlsx) OUTSIDE the project/codebase.
- *
- * Default location: ~/LinkedInBotData  (works cross-platform —
- * resolves to e.g. C:\Users\you\LinkedInBotData on Windows,
- * /home/you/LinkedInBotData on Linux/Mac).
- *
- * Override by setting the environment variable LINKEDINBOT_DATA_DIR
- * to a custom absolute path if desired.
- */
 @Slf4j
 public class AppDataLocation {
 
@@ -23,9 +12,6 @@ public class AppDataLocation {
 
     private static volatile File dataDir;
 
-    /**
-     * Returns the external data directory, creating it if it doesn't exist.
-     */
     public static synchronized File getDataDir() {
         if (dataDir != null) {
             return dataDir;
@@ -53,10 +39,6 @@ public class AppDataLocation {
         return dataDir;
     }
 
-    /**
-     * Returns a File pointing to a named file inside the data directory,
-     * e.g. resolve("profiles.xlsx") -> ~/LinkedInBotData/profiles.xlsx
-     */
     public static File resolve(String fileName) {
         return new File(getDataDir(), fileName);
     }

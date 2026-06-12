@@ -52,6 +52,8 @@ public class AutoApplyService {
             applyBtn.click();
             Thread.sleep(2000);
 
+            handleSafetyReminderIfPresent(driver);
+
             if (driver.getWindowHandles().size() > 1) {
                 log.info("External application detected for {}", jobUrl);
                 return false;
@@ -63,6 +65,8 @@ public class AutoApplyService {
 
             for (int i = 0; i < maxSteps; i++) {
                 Thread.sleep(1500);
+
+                handleSafetyReminderIfPresent(driver);
 
                 handleAdditionalFields(driver);
 
@@ -88,6 +92,8 @@ public class AutoApplyService {
                     nextBtns.get(0).click();
                     Thread.sleep(2000);
 
+                    handleSafetyReminderIfPresent(driver);
+
                     if (hasUnfilledRequiredFields(driver)) {
                         log.info(">>>> ATTENTION: Manual fields required for {} <<<<", job.getJobTitle());
                         boolean resolved = waitForUserToFix(driver, 60);
@@ -112,6 +118,55 @@ public class AutoApplyService {
         } catch (Exception e) {
             log.error("Auto-apply failed for {}: {}", jobUrl, e.getMessage());
             closeModal(driver);
+            return false;
+        }
+    }
+
+    // ── "Job search safety reminder" dialog handler ────────────────────────────
+    private boolean handleSafetyReminderIfPresent(WebDriver driver) {
+        try {
+            // Look for the dialog by its distinctive heading text first —
+            // most robust against LinkedIn's randomized CSS class names.
+            List<WebElement> headings = driver.findElements(
+                    By.xpath("//h2[contains(normalize-space(.), 'Job search safety reminder')] " +
+                            "| //div[contains(normalize-space(.), 'Job search safety reminder')]"));
+
+            boolean dialogPresent = headings.stream().anyMatch(WebElement::isDisplayed);
+
+            // Fallback: even without the heading text, "Continue applying"
+            // is a strong, specific signal for this exact dialog.
+            List<WebElement> continueBtns = driver.findElements(
+                    By.xpath("//button[.//span[contains(normalize-space(.), 'Continue applying')] " +
+                            "or contains(normalize-space(.), 'Continue applying')]"));
+            continueBtns.removeIf(b -> !b.isDisplayed());
+
+            if (!dialogPresent && continueBtns.isEmpty()) {
+                return false; // dialog not present, nothing to do
+            }
+
+            log.info("'Job search safety reminder' dialog detected — clicking 'Continue applying'.");
+
+            if (!continueBtns.isEmpty()) {
+                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", continueBtns.get(0));
+                Thread.sleep(1000);
+                return true;
+            }
+
+            // Last resort: close the dialog via its X button so it doesn't
+            // block subsequent element lookups.
+            List<WebElement> closeBtns = driver.findElements(
+                    By.xpath("//button[contains(@aria-label,'Dismiss') or contains(@aria-label,'Close')]"));
+            closeBtns.removeIf(b -> !b.isDisplayed());
+            if (!closeBtns.isEmpty()) {
+                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", closeBtns.get(0));
+                log.info("'Job search safety reminder' — 'Continue applying' button not found, closed via X instead.");
+                Thread.sleep(1000);
+                return true;
+            }
+
+            return false;
+        } catch (Exception e) {
+            log.warn("handleSafetyReminderIfPresent error: {}", e.getMessage());
             return false;
         }
     }
@@ -216,51 +271,6 @@ public class AutoApplyService {
                     }
                     continue; // Smoothly skip down to the next form group step
                 }
-
-//                // 3. Radio buttons
-//                List<WebElement> radios = group.findElements(By.xpath(".//label"));
-//                if (!radios.isEmpty()) {
-//                    WebElement optionToClick = radios.get(0);
-//                    for (WebElement radio : radios) {
-//                        String radioText = radio.getText().toLowerCase();
-//                        if (radioText.equals("yes") || radioText.equals("comfortable")) {
-//                            optionToClick = radio;
-//                            break;
-//                        }
-//                    }
-//                    if (optionToClick == null && label.contains("english")) {
-//                        for (WebElement radio : radios) {
-//                            String rTxt = radio.getText().toLowerCase();
-//                            if (rTxt.contains("fluent") || rTxt.contains("advanced") || rTxt.contains("native")) {
-//                                optionToClick = radio;
-//                                break;
-//                            }
-//                        }
-//                    }
-//                    if (optionToClick == null && (label.contains("experience") || label.contains("years") || label.contains("scala"))) {
-//                        for (WebElement radio : radios) {
-//                            String rTxt = radio.getText().toLowerCase();
-//                            if (rTxt.contains("less than") || rTxt.contains("0-") || rTxt.contains("limited")) {
-//                                optionToClick = radio;
-//                                break;
-//                            }
-//                        }
-//                    }
-//                    if (optionToClick == null && label.contains("start date")) {
-//                        for (WebElement radio : radios) {
-//                            if (radio.getText().toLowerCase().contains("immediately") ||
-//                                    radio.getText().toLowerCase().contains("within 30 days")) {
-//                                optionToClick = radio;
-//                                break;
-//                            }
-//                        }
-//                    }
-//                    if (optionToClick == null) optionToClick = radios.get(0);
-//                    if (optionToClick != null && optionToClick.isDisplayed()) {
-//                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", optionToClick);
-//                        log.info("Selected radio choice: {}", optionToClick.getText());
-//                    }
-//                }
 
                 // 3. Radio buttons
                 List<WebElement> radios = group.findElements(By.xpath(".//label"));

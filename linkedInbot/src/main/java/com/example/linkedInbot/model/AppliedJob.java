@@ -1,28 +1,20 @@
 package com.example.linkedInbot.model;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
 
-@Entity
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class AppliedJob {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(name = "job_url")
+    private long id;
     private String jobUrl;
     private String jobname;
     private String companyName;
     private LocalDateTime appliedTime;
-
-    @Column(name = "status", length = 500)
     private String status;
 }
