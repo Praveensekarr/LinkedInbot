@@ -137,7 +137,7 @@ public class JobOrchestratorService {
 
             Thread.sleep(5000);
 
-            scraperService.scrapeAndProcessPages(driver, 1);
+            scraperService.scrapeAndProcessPages(driver, 2);
 
             log.info("Automation flow completed successfully.");
 

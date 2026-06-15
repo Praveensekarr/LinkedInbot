@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -133,8 +132,6 @@ public class AutoApplyService {
 
             boolean dialogPresent = headings.stream().anyMatch(WebElement::isDisplayed);
 
-            // Fallback: even without the heading text, "Continue applying"
-            // is a strong, specific signal for this exact dialog.
             List<WebElement> continueBtns = driver.findElements(
                     By.xpath("//button[.//span[contains(normalize-space(.), 'Continue applying')] " +
                             "or contains(normalize-space(.), 'Continue applying')]"));
@@ -152,8 +149,6 @@ public class AutoApplyService {
                 return true;
             }
 
-            // Last resort: close the dialog via its X button so it doesn't
-            // block subsequent element lookups.
             List<WebElement> closeBtns = driver.findElements(
                     By.xpath("//button[contains(@aria-label,'Dismiss') or contains(@aria-label,'Close')]"));
             closeBtns.removeIf(b -> !b.isDisplayed());
@@ -190,7 +185,6 @@ public class AutoApplyService {
                 String label = group.getText().toLowerCase();
 
                 // 1. Safety filter – never overwrite identity / contact fields
-                //    unless the user explicitly provided them via the config form
                 if (label.contains("first name")) {
                     if (c.getFirstName() != null && !c.getFirstName().isBlank()) {
                         fillTextInput(group, c.getFirstName());
@@ -216,6 +210,82 @@ public class AutoApplyService {
                 //2. HTML <select> tags
                 List<WebElement> selects = group.findElements(By.tagName("select"));
                 if (!selects.isEmpty()) {
+
+                    if (selects.size() == 1) {
+                        Select sel = new Select(selects.get(0));
+                        List<WebElement> options = sel.getOptions();
+                        boolean isMonthPicker = options.stream()
+                                .anyMatch(o -> o.getText().trim().equalsIgnoreCase("January"));
+                        boolean isYearPicker = options.stream()
+                                .anyMatch(o -> o.getText().trim().matches("\\d{4}"));
+
+                        if (isMonthPicker) {
+                            String current = sel.getFirstSelectedOption().getText().trim();
+                            if (current.isEmpty() || current.equalsIgnoreCase("Month")) {
+                                // Determine From or To by checking sibling text in the DOM.
+                                try {
+                                    String parentText = selects.get(0)
+                                            .findElement(By.xpath("./ancestor::div[contains(@class,'_3e3cda34') or contains(@class,'a4c337c6')][1]"))
+                                            .getText().toLowerCase();
+                                    if (parentText.contains("from") || parentText.isEmpty()) {
+                                        selectIfUnset(sel, "June");
+                                        log.info("'Dates attended' From-Month filled -> June");
+                                    } else {
+                                        selectIfUnset(sel, "March");
+                                        log.info("'Dates attended' To-Month filled -> March");
+                                    }
+                                } catch (Exception ex) {
+                                    // XPath ancestor lookup failed — safe fallback
+                                    selectIfUnset(sel, "June");
+                                    log.info("'Dates attended' Month filled -> June (fallback)");
+                                }
+                                continue;
+                            }
+                        }
+
+                        if (isYearPicker) {
+                            String current = sel.getFirstSelectedOption().getText().trim();
+                            if (current.isEmpty() || current.equalsIgnoreCase("Year")) {
+                                try {
+                                    String parentText = selects.get(0)
+                                            .findElement(By.xpath("./ancestor::div[contains(@class,'_3e3cda34') or contains(@class,'a4c337c6')][1]"))
+                                            .getText().toLowerCase();
+                                    if (parentText.contains("from") || parentText.isEmpty()) {
+                                        selectIfUnset(sel, "2020");
+                                        log.info("'Dates attended' From-Year filled -> 2020");
+                                    } else {
+                                        selectIfUnset(sel, "2021");
+                                        log.info("'Dates attended' To-Year filled -> 2021");
+                                    }
+                                } catch (Exception ex) {
+                                    selectIfUnset(sel, "2020");
+                                    log.info("'Dates attended' Year filled -> 2020 (fallback)");
+                                }
+                                continue;
+                            }
+                        }
+                    }
+
+                    // ── Previous "dates attended" block (label-based) — now
+                    //    superseded by option-content detection above but kept
+                    //    as a fallback for any form that DOES group all 4 selects.
+                    if (label.contains("dates attended") && selects.size() >= 4) {
+                        try {
+                            Select fromMonth = new Select(selects.get(0));
+                            Select fromYear  = new Select(selects.get(1));
+                            Select toMonth   = new Select(selects.get(2));
+                            Select toYear    = new Select(selects.get(3));
+                            selectIfUnset(fromMonth, "June");
+                            selectIfUnset(fromYear,  "2020");
+                            selectIfUnset(toMonth,   "March");
+                            selectIfUnset(toYear,    "2021");
+                            log.info("'Dates attended' (grouped) filled -> From: June 2020, To: March 2021");
+                        } catch (Exception e) {
+                            log.warn("'Dates attended' grouped fill failed: {}", e.getMessage());
+                        }
+                        continue;
+                    }
+
                     Select sel = new Select(selects.get(0));
                     String firstOptionText = sel.getFirstSelectedOption().getText();
 
@@ -452,6 +522,19 @@ public class AutoApplyService {
         }
     }
 
+    private void selectIfUnset(Select select, String visibleText) {
+        String current = select.getFirstSelectedOption().getText().trim();
+        if (current.isEmpty()
+                || current.equalsIgnoreCase("Month")
+                || current.equalsIgnoreCase("Year")) {
+            try {
+                select.selectByVisibleText(visibleText);
+            } catch (NoSuchElementException e) {
+                log.warn("selectIfUnset: option '{}' not found in dropdown.", visibleText);
+            }
+        }
+    }
+
     private boolean isLocationFieldPresent(WebDriver driver) {
         List<WebElement> fields = driver.findElements(
                 By.cssSelector(".jobs-easy-apply-content input[role='combobox']"));
@@ -530,7 +613,6 @@ public class AutoApplyService {
                 Thread.sleep(1500);
 
                 // ── Handle "Save this application?" artdeco modal ──────────────
-                // FIXED: LinkedIn uses <div class="artdeco-modal">, NOT a <dialog> tag
                 List<WebElement> saveDialogs = driver.findElements(
                         By.cssSelector("div.artdeco-modal[role='dialog']"));
 
