@@ -61,7 +61,6 @@ public class JobFieldResolverService {
         if (label.contains("country"))     return "India";
         if (label.contains("facebook"))    return "";
         if (label.contains("twitter"))     return "";
-        if (label.contains("portfolio"))   return "";
 
         // ── MASTER INR NESTED CONDITION LOOP ──
         if (label.contains("inr")) {
@@ -144,7 +143,7 @@ public class JobFieldResolverService {
         }
 
         // ── 6. GENERAL PROFILE INFO FIELD BINDINGS ──
-        if (label.contains("portfolio") || label.contains("url") || label.contains("linkedin") || label.contains("github")) {
+        if (label.contains("portfolio") || label.contains("url") || label.contains("linkedin") || label.contains("github") || label.contains("website")) {
             return c.getPortfolioUrl() != null ? c.getPortfolioUrl() : "";
         }
         if (label.contains("first name") || label.contains("given name")) {
