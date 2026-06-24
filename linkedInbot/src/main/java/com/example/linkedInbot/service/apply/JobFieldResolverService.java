@@ -18,6 +18,19 @@ public class JobFieldResolverService {
             }
         }
 
+        if (label.contains("degree") && !label.contains("years")) {
+            return "B.E (Bachelor of Engineering)";
+        }
+
+        if (label.contains("how many years") || label.contains("years of experience")
+                || label.contains("years of work experience") || label.matches(".*years?\\s+(with|in|of).*")) {
+            if (c.getExperienceYears() != null && !c.getExperienceYears().isBlank()) {
+                return c.getExperienceYears().trim();
+            }
+            return c.getDefaultNumber() != null ? c.getDefaultNumber() : "0";
+        }
+
+
         if (label.contains("reside") || label.contains("city")) {
             return c.getTargetLocation() != null ? c.getTargetLocation() : "";
         }
@@ -35,7 +48,7 @@ public class JobFieldResolverService {
             return c.getDefaultCompany() != null ? c.getDefaultCompany() : "Self-Employed";
         }
         if (label.contains("degree") || label.contains("qualification"))
-            return "B.E / B.Tech";
+            return "B.E";
 
         if (label.contains("field of study") || label.contains("major"))
             return "Computer Science Engineering";
@@ -59,8 +72,7 @@ public class JobFieldResolverService {
         if (label.contains("province"))    return "Tamil Nadu";
         if (label.contains("postal code")) return "600001";
         if (label.contains("country"))     return "India";
-        if (label.contains("facebook"))    return "";
-        if (label.contains("twitter"))     return "";
+        if(label.contains("Interested")) return "Yes";
 
         // ── MASTER INR NESTED CONDITION LOOP ──
         if (label.contains("inr")) {

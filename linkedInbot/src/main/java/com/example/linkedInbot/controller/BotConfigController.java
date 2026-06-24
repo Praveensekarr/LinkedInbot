@@ -62,6 +62,10 @@ public class BotConfigController {
         safe.setDefaultCompany(cfg.getDefaultCompany());
         safe.setPortfolioUrl(cfg.getPortfolioUrl());
         safe.setDefaultNumber(cfg.getDefaultNumber());
+        safe.setFromMonth(cfg.getFromMonth());
+        safe.setFromYear(cfg.getFromYear());
+        safe.setToMonth(cfg.getToMonth());
+        safe.setToYear(cfg.getToYear());
         safe.setFirstName(cfg.getFirstName());
         safe.setLastName(cfg.getLastName());
         safe.setPhoneNumber(cfg.getPhoneNumber());

@@ -35,6 +35,11 @@ public class UserProfile {
     private String experienceMonths = "";
     private String defaultNumber = "0";
 
+    private String fromMonth = "";
+    private String fromYear  = "";
+    private String toMonth   = "";
+    private String toYear    = "";
+
     private String firstName = "";
     private String lastName = "";
     private String phoneNumber = "";

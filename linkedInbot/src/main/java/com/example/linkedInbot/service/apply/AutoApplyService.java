@@ -65,9 +65,12 @@ public class AutoApplyService {
             for (int i = 0; i < maxSteps; i++) {
                 Thread.sleep(1500);
 
+                // Safety net: this dialog has occasionally been seen reappear
+                // mid-flow (e.g. after "Next" on certain job postings).
                 handleSafetyReminderIfPresent(driver);
 
                 handleAdditionalFields(driver);
+                handleDateDropdowns(driver); // fills any Month/Year selects regardless of which dialog they're in
 
                 if (isLocationFieldPresent(driver)) {
                     log.info("Location dropdown detected on step {}. Autofilling...", i + 1);
@@ -91,6 +94,9 @@ public class AutoApplyService {
                     nextBtns.get(0).click();
                     Thread.sleep(2000);
 
+                    // The safety reminder can also appear right after clicking
+                    // "Next"/"Review" on certain postings — clear it before
+                    // evaluating whether required fields are unfilled.
                     handleSafetyReminderIfPresent(driver);
 
                     if (hasUnfilledRequiredFields(driver)) {
@@ -122,6 +128,17 @@ public class AutoApplyService {
     }
 
     // ── "Job search safety reminder" dialog handler ────────────────────────────
+    /**
+     * LinkedIn occasionally shows a "Job search safety reminder" dialog
+     * (heading text: "Job search safety reminder", with "Research the
+     * company" / "Report suspicious jobs" sections) right after clicking
+     * Apply, or sometimes mid-flow after Next/Review.
+     *
+     * If present, click its "Continue applying" button so the normal
+     * Easy Apply flow proceeds. If that button can't be found, fall back
+     * to dismissing via the dialog's close (X) button. Returns true if
+     * the dialog was found and handled, false if it wasn't present.
+     */
     private boolean handleSafetyReminderIfPresent(WebDriver driver) {
         try {
             // Look for the dialog by its distinctive heading text first —
@@ -132,6 +149,8 @@ public class AutoApplyService {
 
             boolean dialogPresent = headings.stream().anyMatch(WebElement::isDisplayed);
 
+            // Fallback: even without the heading text, "Continue applying"
+            // is a strong, specific signal for this exact dialog.
             List<WebElement> continueBtns = driver.findElements(
                     By.xpath("//button[.//span[contains(normalize-space(.), 'Continue applying')] " +
                             "or contains(normalize-space(.), 'Continue applying')]"));
@@ -149,6 +168,8 @@ public class AutoApplyService {
                 return true;
             }
 
+            // Last resort: close the dialog via its X button so it doesn't
+            // block subsequent element lookups.
             List<WebElement> closeBtns = driver.findElements(
                     By.xpath("//button[contains(@aria-label,'Dismiss') or contains(@aria-label,'Close')]"));
             closeBtns.removeIf(b -> !b.isDisplayed());
@@ -163,6 +184,128 @@ public class AutoApplyService {
         } catch (Exception e) {
             log.warn("handleSafetyReminderIfPresent error: {}", e.getMessage());
             return false;
+        }
+    }
+
+    // ── Date dropdown handler ─────────────────────────────────────────────────
+    /**
+     * Fills From/To Month+Year dropdowns on LinkedIn's date-range fields.
+     *
+     * DOM structure (confirmed from inspect):
+     *
+     *   <fieldset data-test-date-dropdown="start">        ← From
+     *     <select data-test-month-select name="month">
+     *       <option value="Month">Month</option>
+     *       <option value="1">January</option>
+     *       ...
+     *       <option value="12">December</option>
+     *     </select>
+     *     <select data-test-year-select name="year">
+     *       <option value="Year">Year</option>
+     *       <option value="2026">2026</option>
+     *       ...
+     *       <option value="2020">2020</option>
+     *     </select>
+     *   </fieldset>
+     *
+     *   <fieldset data-test-date-dropdown="end">          ← To
+     *     (same structure)
+     *   </fieldset>
+     *
+     * Key fix: month options use NUMERIC values ("1"–"12"), NOT text ("January").
+     * Placeholder options use value="Month" and value="Year" (not empty string).
+     * We scope each fill to its own fieldset so From/To never get mixed up.
+     *
+     * Values are read from BotConfig so they're user-configurable:
+     *   fromMonth / fromYear  →  From date
+     *   toMonth   / toYear    →  To date
+     *
+     * If BotConfig fields are null/blank, sensible hardcoded defaults are used.
+     */
+    private void handleDateDropdowns(WebDriver driver) {
+        try {
+            BotConfig c = cfg();
+
+            // Read from BotConfig — fall back to hardcoded defaults if not set
+            String fromMonth = (c.getFromMonth() != null && !c.getFromMonth().isBlank())
+                    ? c.getFromMonth().trim() : "6";    // June
+            String fromYear  = (c.getFromYear()  != null && !c.getFromYear().isBlank())
+                    ? c.getFromYear().trim()  : "2020";
+            String toMonth   = (c.getToMonth()   != null && !c.getToMonth().isBlank())
+                    ? c.getToMonth().trim()   : "3";    // March
+            String toYear    = (c.getToYear()    != null && !c.getToYear().isBlank())
+                    ? c.getToYear().trim()    : "2021";
+
+            fillDateRange(driver, "start", fromMonth, fromYear);
+            fillDateRange(driver, "end",   toMonth,   toYear);
+
+        } catch (Exception e) {
+            log.warn("[handleDateDropdowns] Unexpected error: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Fills the Month and Year selects inside a single
+     * fieldset[data-test-date-dropdown="start|end"].
+     *
+     * @param fieldsetType  "start" (From) or "end" (To)
+     * @param monthValue    Numeric string matching the <option value>, e.g. "6" for June
+     * @param yearValue     Four-digit year string, e.g. "2020"
+     */
+    private void fillDateRange(WebDriver driver, String fieldsetType,
+                               String monthValue, String yearValue) {
+        try {
+            // Scope to the correct fieldset so From and To are never mixed up
+            WebElement fieldset = driver.findElement(
+                    By.cssSelector("fieldset[data-test-date-dropdown='" + fieldsetType + "']"));
+
+            // ── Month ─────────────────────────────────────────────────────────
+            try {
+                WebElement monthEl = fieldset.findElement(
+                        By.cssSelector("select[data-test-month-select]"));
+                Select monthSel = new Select(monthEl);
+
+                // Placeholder option has value="Month" (not empty string)
+                String currentValue = monthSel.getFirstSelectedOption().getAttribute("value");
+                if ("Month".equals(currentValue) || currentValue == null || currentValue.isBlank()) {
+                    monthSel.selectByValue(monthValue); // e.g. "6" → June
+                    log.info("[handleDateDropdowns] [{}] Month set → value='{}'", fieldsetType, monthValue);
+                } else {
+                    log.debug("[handleDateDropdowns] [{}] Month already set (value='{}'), skipping.",
+                            fieldsetType, currentValue);
+                }
+            } catch (NoSuchElementException e) {
+                log.debug("[handleDateDropdowns] [{}] Month select not found.", fieldsetType);
+            } catch (Exception e) {
+                log.warn("[handleDateDropdowns] [{}] Month error: {}", fieldsetType, e.getMessage());
+            }
+
+            // ── Year ──────────────────────────────────────────────────────────
+            try {
+                WebElement yearEl = fieldset.findElement(
+                        By.cssSelector("select[data-test-year-select]"));
+                Select yearSel = new Select(yearEl);
+
+                // Placeholder option has value="Year" (not empty string)
+                String currentValue = yearSel.getFirstSelectedOption().getAttribute("value");
+                if ("Year".equals(currentValue) || currentValue == null || currentValue.isBlank()) {
+                    yearSel.selectByValue(yearValue); // e.g. "2020"
+                    log.info("[handleDateDropdowns] [{}] Year set → value='{}'", fieldsetType, yearValue);
+                } else {
+                    log.debug("[handleDateDropdowns] [{}] Year already set (value='{}'), skipping.",
+                            fieldsetType, currentValue);
+                }
+            } catch (NoSuchElementException e) {
+                log.debug("[handleDateDropdowns] [{}] Year select not found.", fieldsetType);
+            } catch (Exception e) {
+                log.warn("[handleDateDropdowns] [{}] Year error: {}", fieldsetType, e.getMessage());
+            }
+
+        } catch (NoSuchElementException e) {
+            // This step simply doesn't have a date-range field — perfectly normal
+            log.debug("[handleDateDropdowns] Fieldset '{}' not present on this step.", fieldsetType);
+        } catch (Exception e) {
+            log.warn("[handleDateDropdowns] [{}] Unexpected error: {}", fieldsetType, e.getMessage());
         }
     }
 
@@ -185,6 +328,7 @@ public class AutoApplyService {
                 String label = group.getText().toLowerCase();
 
                 // 1. Safety filter – never overwrite identity / contact fields
+                //    unless the user explicitly provided them via the config form
                 if (label.contains("first name")) {
                     if (c.getFirstName() != null && !c.getFirstName().isBlank()) {
                         fillTextInput(group, c.getFirstName());
@@ -210,81 +354,6 @@ public class AutoApplyService {
                 //2. HTML <select> tags
                 List<WebElement> selects = group.findElements(By.tagName("select"));
                 if (!selects.isEmpty()) {
-
-                    if (selects.size() == 1) {
-                        Select sel = new Select(selects.get(0));
-                        List<WebElement> options = sel.getOptions();
-                        boolean isMonthPicker = options.stream()
-                                .anyMatch(o -> o.getText().trim().equalsIgnoreCase("January"));
-                        boolean isYearPicker = options.stream()
-                                .anyMatch(o -> o.getText().trim().matches("\\d{4}"));
-
-                        if (isMonthPicker) {
-                            String current = sel.getFirstSelectedOption().getText().trim();
-                            if (current.isEmpty() || current.equalsIgnoreCase("Month")) {
-                                // Determine From or To by checking sibling text in the DOM.
-                                try {
-                                    String parentText = selects.get(0)
-                                            .findElement(By.xpath("./ancestor::div[contains(@class,'_3e3cda34') or contains(@class,'a4c337c6')][1]"))
-                                            .getText().toLowerCase();
-                                    if (parentText.contains("from") || parentText.isEmpty()) {
-                                        selectIfUnset(sel, "June");
-                                        log.info("'Dates attended' From-Month filled -> June");
-                                    } else {
-                                        selectIfUnset(sel, "March");
-                                        log.info("'Dates attended' To-Month filled -> March");
-                                    }
-                                } catch (Exception ex) {
-                                    // XPath ancestor lookup failed — safe fallback
-                                    selectIfUnset(sel, "June");
-                                    log.info("'Dates attended' Month filled -> June (fallback)");
-                                }
-                                continue;
-                            }
-                        }
-
-                        if (isYearPicker) {
-                            String current = sel.getFirstSelectedOption().getText().trim();
-                            if (current.isEmpty() || current.equalsIgnoreCase("Year")) {
-                                try {
-                                    String parentText = selects.get(0)
-                                            .findElement(By.xpath("./ancestor::div[contains(@class,'_3e3cda34') or contains(@class,'a4c337c6')][1]"))
-                                            .getText().toLowerCase();
-                                    if (parentText.contains("from") || parentText.isEmpty()) {
-                                        selectIfUnset(sel, "2020");
-                                        log.info("'Dates attended' From-Year filled -> 2020");
-                                    } else {
-                                        selectIfUnset(sel, "2021");
-                                        log.info("'Dates attended' To-Year filled -> 2021");
-                                    }
-                                } catch (Exception ex) {
-                                    selectIfUnset(sel, "2020");
-                                    log.info("'Dates attended' Year filled -> 2020 (fallback)");
-                                }
-                                continue;
-                            }
-                        }
-                    }
-
-                    // ── Previous "dates attended" block (label-based) — now
-                    //    superseded by option-content detection above but kept
-                    //    as a fallback for any form that DOES group all 4 selects.
-                    if (label.contains("dates attended") && selects.size() >= 4) {
-                        try {
-                            Select fromMonth = new Select(selects.get(0));
-                            Select fromYear  = new Select(selects.get(1));
-                            Select toMonth   = new Select(selects.get(2));
-                            Select toYear    = new Select(selects.get(3));
-                            selectIfUnset(fromMonth, "June");
-                            selectIfUnset(fromYear,  "2020");
-                            selectIfUnset(toMonth,   "March");
-                            selectIfUnset(toYear,    "2021");
-                            log.info("'Dates attended' (grouped) filled -> From: June 2020, To: March 2021");
-                        } catch (Exception e) {
-                            log.warn("'Dates attended' grouped fill failed: {}", e.getMessage());
-                        }
-                        continue;
-                    }
 
                     Select sel = new Select(selects.get(0));
                     String firstOptionText = sel.getFirstSelectedOption().getText();
@@ -436,6 +505,7 @@ public class AutoApplyService {
                 List<WebElement> inputs = group.findElements(
                         By.cssSelector("input[type='text'], input[type='number']"));
                 if (!inputs.isEmpty()) {
+
                     WebElement input = inputs.get(0);
                     String currentVal = input.getAttribute("value");
 
@@ -522,6 +592,11 @@ public class AutoApplyService {
         }
     }
 
+    /**
+     * Selects the given visible-text option in a <select> only if the
+     * dropdown is currently unset (showing a placeholder like "Month"
+     * or "Year"). Leaves user-prefilled values untouched.
+     */
     private void selectIfUnset(Select select, String visibleText) {
         String current = select.getFirstSelectedOption().getText().trim();
         if (current.isEmpty()
@@ -613,6 +688,7 @@ public class AutoApplyService {
                 Thread.sleep(1500);
 
                 // ── Handle "Save this application?" artdeco modal ──────────────
+                // FIXED: LinkedIn uses <div class="artdeco-modal">, NOT a <dialog> tag
                 List<WebElement> saveDialogs = driver.findElements(
                         By.cssSelector("div.artdeco-modal[role='dialog']"));
 
@@ -796,6 +872,23 @@ public class AutoApplyService {
         if (label.contains("sql") || label.contains("database"))
             return "I have hands-on experience with MySQL and basic PostgreSQL, "
                     + "including writing complex queries, joins, and stored procedures.";
+
+        if (label.contains("front-end") || label.contains("frontend")) {
+            return "HTML, CSS, JavaScript, React.js - 4/5; Tailwind CSS - 3/5; "
+                    + "Bootstrap - 4/5; TypeScript - 3/5.";
+        }
+        if (label.contains("back-end") || label.contains("backend")) {
+            return "Java - 4/5; Spring Boot - 4/5; REST APIs - 4/5; "
+                    + "MySQL - 4/5; Node.js - 3/5.";
+        }
+
+        // ── Top skills + years of experience in each (free-text version) ──
+        if (label.contains("top three skills") || label.contains("top skills")) {
+            String years = c.getExperienceYears() != null && !c.getExperienceYears().isBlank()
+                    ? c.getExperienceYears() : "2";
+            return "Java - " + years + " years; Spring Boot - " + years + " years; "
+                    + "MySQL - " + years + " years.";
+        }
 
         // Portfolio / links
         if (label.contains("portfolio") || label.contains("url") || label.contains("linkedin") || label.contains("github"))

@@ -42,6 +42,7 @@ public class ProfileStoreService {
             "currentCtc", "currentCtcMonthly", "expectedCtc", "expectedCtcMonthly",
             "noticePeriod", "workTitle", "defaultCompany", "portfolioUrl",
             "experienceYears", "experienceMonths", "defaultNumber",
+            "fromMonth", "fromYear", "toMonth", "toYear",
             "firstName", "lastName", "phoneNumber", "photoPath", "gender",
             "customFields" // JSON-encoded map
     };
@@ -200,13 +201,17 @@ public class ProfileStoreService {
         p.setExperienceYears(getCellString(row, 13));
         p.setExperienceMonths(getCellString(row, 14));
         p.setDefaultNumber(getCellString(row, 15));
-        p.setFirstName(getCellString(row, 16));
-        p.setLastName(getCellString(row, 17));
-        p.setPhoneNumber(getCellString(row, 18));
-        p.setPhotoPath(getCellString(row, 19));
-        p.setGender(getCellString(row, 20));
+        p.setFromMonth(getCellString(row, 16));
+        p.setFromYear(getCellString(row, 17));
+        p.setToMonth(getCellString(row, 18));
+        p.setToYear(getCellString(row, 19));
+        p.setFirstName(getCellString(row, 20));
+        p.setLastName(getCellString(row, 21));
+        p.setPhoneNumber(getCellString(row, 22));
+        p.setPhotoPath(getCellString(row, 23));
+        p.setGender(getCellString(row, 24));
 
-        String customFieldsJson = getCellString(row, 21);
+        String customFieldsJson = getCellString(row, 25);
         if (customFieldsJson != null && !customFieldsJson.isBlank()) {
             try {
                 @SuppressWarnings("unchecked")
@@ -236,11 +241,15 @@ public class ProfileStoreService {
         setCell(row, 13, p.getExperienceYears());
         setCell(row, 14, p.getExperienceMonths());
         setCell(row, 15, p.getDefaultNumber());
-        setCell(row, 16, p.getFirstName());
-        setCell(row, 17, p.getLastName());
-        setCell(row, 18, p.getPhoneNumber());
-        setCell(row, 19, p.getPhotoPath());
-        setCell(row, 20, p.getGender());
+        setCell(row, 16, p.getFromMonth());
+        setCell(row, 17, p.getFromYear());
+        setCell(row, 18, p.getToMonth());
+        setCell(row, 19, p.getToYear());
+        setCell(row, 20, p.getFirstName());
+        setCell(row, 21, p.getLastName());
+        setCell(row, 22, p.getPhoneNumber());
+        setCell(row, 23, p.getPhotoPath());
+        setCell(row, 24, p.getGender());
 
         String customFieldsJson = "";
         try {
@@ -249,7 +258,7 @@ public class ProfileStoreService {
         } catch (IOException e) {
             log.warn("Could not serialize customFields for {}: {}", p.getEmail(), e.getMessage());
         }
-        setCell(row, 21, customFieldsJson);
+        setCell(row, 25, customFieldsJson);
     }
 
     private void setCell(Row row, int col, String value) {

@@ -35,6 +35,11 @@ public class BotConfig {
     // ── Generic numeric fallback ──────────────────────────────────────────────
     private String defaultNumber;       // e.g. "0" — used for unknown numeric fields
 
+    private String fromMonth;  // e.g. "6" for June
+    private String fromYear;   // e.g. "2020"
+    private String toMonth;    // e.g. "3" for March
+    private String toYear;     // e.g. "2021"
+
     // ── Personal details (used in dialog-box form filling) ───────────────────
     private String firstName;
     private String lastName;
