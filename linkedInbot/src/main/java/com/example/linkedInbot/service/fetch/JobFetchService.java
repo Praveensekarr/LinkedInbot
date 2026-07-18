@@ -92,7 +92,7 @@ public class JobFetchService {
                         )
                 );
                 String btnText = applyBtn.getText().trim();
-                easyApplyAvailable = applyBtn.isDisplayed() && applyBtn.isEnabled() && btnText.contains("Easy Apply");
+                easyApplyAvailable = applyBtn.isDisplayed() && applyBtn.isEnabled() && btnText.contains("Apply");
                 log.info("Apply button text: {}", btnText);
             } catch (TimeoutException ex) {
                 easyApplyAvailable = false;
