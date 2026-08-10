@@ -70,7 +70,7 @@ public class LinkedInLoginService {
             String currentUrl = driver.getCurrentUrl();
 
             if (pageSource.contains("password was incorrect")) {
-                throw new RuntimeException("Invalid LinkedIn Password");
+                throw new RuntimeException("Invalid LinkedIn - Password");
             }
 
             if (currentUrl.contains("checkpoint") || currentUrl.contains("challenge")
